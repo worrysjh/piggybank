@@ -2,6 +2,9 @@
 pragma solidity ^0.8.0;
 
 contract PiggyBank {
+    event PublicAccountCreated(bytes32 indexed id, address indexed owner);
+
+
     // ------------------------
     // 개인 계좌
     //1. 각 사용자의 잔액 저장
@@ -41,63 +44,76 @@ contract PiggyBank {
     // ------------------------
     // 공용 계좌
     struct PublicAccount {
-        address owner;
-        mapping(address => bool) access;
-        mapping(address => uint256) depositLimit;
-        mapping(address => uint256) withdrawLimit;
-        mapping(address => uint256) balances;
+        address owner;                              // 관리자(계설자)
+        mapping(address => bool) access;            // 각 사용자 입출금 가능 여부
+        mapping(address => uint256) depositLimit;   // 입금 한도
+        mapping(address => uint256) withdrawLimit;  // 출금 한도
+        mapping(address => uint256) balances;       // 잔액
     }
 
-    mapping(bytes32 => PublicAccount) public PublicAccounts;
+    mapping(bytes32 => PublicAccount) public publicAccounts;
 
+    // 공용계좌 개설
     function createPublicAccount() external returns (bytes32) {
         bytes32 id = keccak256(abi.encodePacked(msg.sender, block.timestamp));
         PublicAccount storage acc = publicAccounts[id];
         acc.owner = msg.sender;
         acc.access[msg.sender] = true;
+
+        emit PublicAccountCreated(id, msg.sender);
+
         return id;
     }
 
+    // 계좌 주인인가?
     modifier onlyOwner(bytes32 accountId) {
         require(publicAccounts[accountId].owner == msg.sender, "Not the account owner");
         _;
     }
 
+    // 권한이 부여되었는가?
     modifier onlyAuthorized(bytes32 accountId) {
-        require(publicAccounts[aacountId].access[msg.sender], "No access");
+        require(publicAccounts[accountId].access[msg.sender], "No access");
         _;
     }
 
+    // 특정 유저에게 권한 부여
     function grantAccess(bytes32 accountId, address user) external onlyOwner(accountId) {
         publicAccounts[accountId].access[user] = true;
     }
 
+    // 특정 유저에게 권한 몰수
     function revokeAccess(bytes32 accountId, address user) external onlyOwner(accountId) {
         publicAccounts[accountId].access[user] = false;
     }
 
+    // 특정 유저 입금 한도 설정
     function setDepositLimit(bytes32 accountId, address user, uint256 limit) external onlyOwner(accountId) {
         publicAccounts[accountId].depositLimit[user] = limit;
     }
 
+    // 특정 유저 출금 한도 설정
     function setWithdrawLimit(bytes32 accountId, address user, uint256 limit) external onlyOwner(accountId) {
-        publicAccounts[aacountId].withdrawLimit[user] = limit;
+        publicAccounts[accountId].withdrawLimit[user] = limit;
     }
 
+    // 공용계좌에 입금
     function depositToPublic(bytes32 accountId) external payable onlyAuthorized(accountId) {
         uint256 limit = publicAccounts[accountId].depositLimit[msg.sender];
         require(limit == 0 || msg.value <= limit, "Deposit exceeds limit");
         publicAccounts[accountId].balances[msg.sender] += msg.value;
     }
 
+    // 공용계좌에서 출금
     function withdrawFromPublic(bytes32 accountId, uint256 amount) external onlyAuthorized(accountId) {
         uint256 limit = publicAccounts[accountId].withdrawLimit[msg.sender];
-        require(limit == 0 || amout <= limit, "Withdraw exceeds limit");
+        require(limit == 0 || amount <= limit, "Withdraw exceeds limit");
         require(publicAccounts[accountId].balances[msg.sender] >= amount, "Insufficient balance");
         publicAccounts[accountId].balances[msg.sender] -= amount;
         payable(msg.sender).transfer(amount);
     }
 
+    // 공용계좌 잔고 확인
     function checkPublicBalance(bytes32 accountId) external view onlyAuthorized(accountId) returns (uint256) {
         return publicAccounts[accountId].balances[msg.sender];
     }

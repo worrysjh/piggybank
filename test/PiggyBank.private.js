@@ -5,6 +5,7 @@ const { parseEther } = ethers; // ethers v6용
 describe("PiggyBank - 개인 계좌 기능", function () {
   let PiggyBank, piggyBank, owner, user;
 
+  // 각 it 시작 전 실행필요
   beforeEach(async () => {
     [owner, user] = await ethers.getSigners();
     PiggyBank = await ethers.getContractFactory("PiggyBank");
