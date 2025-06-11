@@ -5,12 +5,12 @@ pragma solidity ^0.8.0;
 /// @notice 사용자가 개인 또는 공용 계좌를 개설하고, 입출금할 수 있게 한다
 contract PiggyBank {
     event PrivateAccountCreated(address indexed owner);
-    event PirvateAccountDeposited(address indexed owner, uint256 amount);
-    event PrivateAccountWithdraw(address indexed owner, uint256 amount);
+    event Deposited(address indexed owner, uint256 amount);
+    event Withdraw(address indexed owner, uint256 amount);
 
     event PublicAccountCreated(bytes32 indexed id, address indexed owner);
-    event PublicAccessGrant(bytes32 indexed id, address indexed user);
-    event PublicAccessRevoke(bytes32 indexed id, address indexed user);
+    event AccessGrant(bytes32 indexed id, address indexed user);
+    event AccessRevoke(bytes32 indexed id, address indexed user);
     event LimitSetToDeposit(
         bytes32 indexed id,
         address indexed user,
@@ -21,12 +21,12 @@ contract PiggyBank {
         address indexed user,
         uint256 limit
     );
-    event PublicAccountDeposit(
+    event PublicDeposit(
         bytes32 indexed id,
         address indexed user,
         uint256 amount
     );
-    event PublicAccountWithdraw(
+    event PublicWithdraw(
         bytes32 indexed id,
         address indexed user,
         uint256 amount
@@ -40,6 +40,13 @@ contract PiggyBank {
     /// @notice 계좌 개설 여부 확인
     mapping(address => bool) private hasAccount;
 
+    /// @notice 계좌가 존재하는지지 검사한다
+    /// @dev modifier를 통해 전제 조건으로 검사
+    modifier hasPrivateAccount(address user) {
+        require(hasAccount[user], "Account not found");
+        _;
+    }
+
     /// @notice 개인 계좌를 개설한다. 한번만 개설 가능하다.
     /// @dev balances와 hasAccount 갱신
     function createAccount() external {
@@ -52,23 +59,20 @@ contract PiggyBank {
 
     /// @notice 개인 계좌에 입금할 수 있다.
     /// @dev msg.value만큼 balances에 추가
-    function deposit() external payable {
-        require(hasAccount[msg.sender], "Account not found");
+    function deposit() external payable hasPrivateAccount(msg.sender) {
         balances[msg.sender] += msg.value;
 
-        emit PirvateAccountDeposited(msg.sender, msg.value);
+        emit Deposited(msg.sender, msg.value);
     }
 
     /// @notice 개인 계좌에서 출금할 수 있다.
     /// @dev amount가 balances보다 작으면 그만큼 balances에서 차감감
-    function withdraw(uint256 _amount) external {
-        require(hasAccount[msg.sender], "Account not found");
+    function withdraw(uint256 _amount) external hasPrivateAccount(msg.sender) {
         require(balances[msg.sender] >= _amount, "Insufficient balance");
-
         balances[msg.sender] -= _amount;
         payable(msg.sender).transfer(_amount);
 
-        emit PrivateAccountWithdraw(msg.sender, _amount);
+        emit Withdraw(msg.sender, _amount);
     }
 
     /// @notice 개인 계좌의 잔액을 조회할 수 있다.
@@ -127,7 +131,7 @@ contract PiggyBank {
     ) external onlyOwner(_accountId) {
         publicAccounts[_accountId].access[_user] = true;
 
-        emit PublicAccessGrant(_accountId, _user);
+        emit AccessGrant(_accountId, _user);
     }
 
     /// @notice 특정 유저에게 접근 권한을 박탈한다
@@ -137,7 +141,7 @@ contract PiggyBank {
     ) external onlyOwner(_accountId) {
         publicAccounts[_accountId].access[_user] = false;
 
-        emit PublicAccessRevoke(_accountId, _user);
+        emit AccessRevoke(_accountId, _user);
     }
 
     /// @notice 특정 유저 입금 한도를 설정한다
@@ -171,7 +175,7 @@ contract PiggyBank {
         require(limit == 0 || msg.value <= limit, "Deposit exceeds limit");
         publicAccounts[_accountId].balances[msg.sender] += msg.value;
 
-        emit PublicAccountDeposit(_accountId, msg.sender, msg.value);
+        emit PublicDeposit(_accountId, msg.sender, msg.value);
     }
 
     /// @notice 공용계좌에서 출금
@@ -189,7 +193,7 @@ contract PiggyBank {
         publicAccounts[_accountId].balances[msg.sender] -= _amount;
         payable(msg.sender).transfer(_amount);
 
-        emit PublicAccountWithdraw(_accountId, msg.sender, _amount);
+        emit PublicWithdraw(_accountId, msg.sender, _amount);
     }
 
     /// @notice 공용계좌 잔고 확인
