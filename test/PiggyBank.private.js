@@ -3,13 +3,19 @@ const { ethers } = require("hardhat");
 const { parseEther } = ethers; // ethers v6용
 
 describe("PiggyBank - 개인 계좌 기능", function () {
-  let PiggyBank, piggyBank, owner, user;
+  let PiggyBank, piggyBank, user;
 
   // 각 it 시작 전 실행필요
   beforeEach(async () => {
-    [owner, user] = await ethers.getSigners();
+    [user] = await ethers.getSigners();
     PiggyBank = await ethers.getContractFactory("PiggyBank");
     piggyBank = await PiggyBank.deploy();
+  });
+
+  it("개인 계좌 생성 시 이벤트가 발생해야 한다", async () => {
+    await expect(piggyBank.connect(user).createAccount())
+      .to.emit(piggyBank, "PrivateAccountCreated")
+      .withArgs(user.address);
   });
 
   it("계좌가 없는 사용자는 입금할 수 없어야 한다", async () => {

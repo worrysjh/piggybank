@@ -4,7 +4,33 @@ pragma solidity ^0.8.0;
 /// @title PiggyBank - 개인 및 공용 계좌를 지원하는 이더리움 은행
 /// @notice 사용자가 개인 또는 공용 계좌를 개설하고, 입출금할 수 있게 한다
 contract PiggyBank {
+    event PrivateAccountCreated(address indexed owner);
+    event PirvateAccountDeposited(address indexed owner, uint256 amount);
+    event PrivateAccountWithdraw(address indexed owner, uint256 amount);
+
     event PublicAccountCreated(bytes32 indexed id, address indexed owner);
+    event PublicAccessGrant(bytes32 indexed id, address indexed user);
+    event PublicAccessRevoke(bytes32 indexed id, address indexed user);
+    event LimitSetToDeposit(
+        bytes32 indexed id,
+        address indexed user,
+        uint256 limit
+    );
+    event LimitSetToWithdraw(
+        bytes32 indexed id,
+        address indexed user,
+        uint256 limit
+    );
+    event PublicAccountDeposit(
+        bytes32 indexed id,
+        address indexed user,
+        uint256 amount
+    );
+    event PublicAccountWithdraw(
+        bytes32 indexed id,
+        address indexed user,
+        uint256 amount
+    );
 
     // ------------------------
     // 개인 계좌
@@ -20,6 +46,8 @@ contract PiggyBank {
         require(!hasAccount[msg.sender], "Already has an account!");
         hasAccount[msg.sender] = true;
         balances[msg.sender] = 0;
+
+        emit PrivateAccountCreated(msg.sender);
     }
 
     /// @notice 개인 계좌에 입금할 수 있다.
@@ -27,16 +55,20 @@ contract PiggyBank {
     function deposit() external payable {
         require(hasAccount[msg.sender], "Account not found");
         balances[msg.sender] += msg.value;
+
+        emit PirvateAccountDeposited(msg.sender, msg.value);
     }
 
     /// @notice 개인 계좌에서 출금할 수 있다.
     /// @dev amount가 balances보다 작으면 그만큼 balances에서 차감감
-    function withdraw(uint256 amount) external {
+    function withdraw(uint256 _amount) external {
         require(hasAccount[msg.sender], "Account not found");
-        require(balances[msg.sender] >= amount, "Insufficient balance");
+        require(balances[msg.sender] >= _amount, "Insufficient balance");
 
-        balances[msg.sender] -= amount;
-        payable(msg.sender).transfer(amount);
+        balances[msg.sender] -= _amount;
+        payable(msg.sender).transfer(_amount);
+
+        emit PrivateAccountWithdraw(msg.sender, _amount);
     }
 
     /// @notice 개인 계좌의 잔액을 조회할 수 있다.
@@ -49,11 +81,11 @@ contract PiggyBank {
     // 공용 계좌
     /// @notice 공용 계좌 구조
     struct PublicAccount {
-        address owner;                              // 관리자(계설자)
-        mapping(address => bool) access;            // 각 사용자 입출금 가능 여부
-        mapping(address => uint256) depositLimit;   // 입금 한도
-        mapping(address => uint256) withdrawLimit;  // 출금 한도
-        mapping(address => uint256) balances;       // 잔액
+        address owner; // 관리자(계설자)
+        mapping(address => bool) access; // 각 사용자 입출금 가능 여부
+        mapping(address => uint256) depositLimit; // 입금 한도
+        mapping(address => uint256) withdrawLimit; // 출금 한도
+        mapping(address => uint256) balances; // 잔액
     }
 
     mapping(bytes32 => PublicAccount) public publicAccounts;
@@ -73,58 +105,97 @@ contract PiggyBank {
 
     /// @notice 계좌 주인인가를 검사한다
     /// @dev modifier를 통해 전제 조건으로 검사
-    modifier onlyOwner(bytes32 accountId) {
-        require(publicAccounts[accountId].owner == msg.sender, "Not the account owner");
+    modifier onlyOwner(bytes32 _accountId) {
+        require(
+            publicAccounts[_accountId].owner == msg.sender,
+            "Not the account owner"
+        );
         _;
     }
 
     /// @notice 권한이 부여되었는가를 검사한다
     /// @dev modifier를 통해 전제 조건으로 검사
-    modifier onlyAuthorized(bytes32 accountId) {
-        require(publicAccounts[accountId].access[msg.sender], "No access");
+    modifier onlyAuthorized(bytes32 _accountId) {
+        require(publicAccounts[_accountId].access[msg.sender], "No access");
         _;
     }
 
     /// @notice 특정 유저에게 접근 권한을 부여한다
-    function grantAccess(bytes32 accountId, address user) external onlyOwner(accountId) {
-        publicAccounts[accountId].access[user] = true;
+    function grantAccess(
+        bytes32 _accountId,
+        address _user
+    ) external onlyOwner(_accountId) {
+        publicAccounts[_accountId].access[_user] = true;
+
+        emit PublicAccessGrant(_accountId, _user);
     }
 
     /// @notice 특정 유저에게 접근 권한을 박탈한다
-    function revokeAccess(bytes32 accountId, address user) external onlyOwner(accountId) {
-        publicAccounts[accountId].access[user] = false;
+    function revokeAccess(
+        bytes32 _accountId,
+        address _user
+    ) external onlyOwner(_accountId) {
+        publicAccounts[_accountId].access[_user] = false;
+
+        emit PublicAccessRevoke(_accountId, _user);
     }
 
     /// @notice 특정 유저 입금 한도를 설정한다
-    function setDepositLimit(bytes32 accountId, address user, uint256 limit) external onlyOwner(accountId) {
-        publicAccounts[accountId].depositLimit[user] = limit;
+    function setDepositLimit(
+        bytes32 _accountId,
+        address _user,
+        uint256 _limit
+    ) external onlyOwner(_accountId) {
+        publicAccounts[_accountId].depositLimit[_user] = _limit;
+
+        emit LimitSetToDeposit(_accountId, _user, _limit);
     }
 
     /// @notice 특정 유저 출금 한도를 설정한다
-    function setWithdrawLimit(bytes32 accountId, address user, uint256 limit) external onlyOwner(accountId) {
-        publicAccounts[accountId].withdrawLimit[user] = limit;
+    function setWithdrawLimit(
+        bytes32 _accountId,
+        address _user,
+        uint256 _limit
+    ) external onlyOwner(_accountId) {
+        publicAccounts[_accountId].withdrawLimit[_user] = _limit;
+
+        emit LimitSetToWithdraw(_accountId, _user, _limit);
     }
 
     /// @notice 공용계좌에 입금
     /// @dev 공용계좌(accountId)에 허가된(onlyAuthorized) 유저(msg.sender)의 입금액(msg.value)만큼 잔고(balances)에 추가
-    function depositToPublic(bytes32 accountId) external payable onlyAuthorized(accountId) {
-        uint256 limit = publicAccounts[accountId].depositLimit[msg.sender];
+    function depositToPublic(
+        bytes32 _accountId
+    ) external payable onlyAuthorized(_accountId) {
+        uint256 limit = publicAccounts[_accountId].depositLimit[msg.sender];
         require(limit == 0 || msg.value <= limit, "Deposit exceeds limit");
-        publicAccounts[accountId].balances[msg.sender] += msg.value;
+        publicAccounts[_accountId].balances[msg.sender] += msg.value;
+
+        emit PublicAccountDeposit(_accountId, msg.sender, msg.value);
     }
 
     /// @notice 공용계좌에서 출금
     /// @dev 공용계좌(accountId)에 허가된(onlyAuthorized) 유저(msg.sender)의 한도(limit) 이하의 출금액(amount)만큼 잔고(balances)에서 차감
-    function withdrawFromPublic(bytes32 accountId, uint256 amount) external onlyAuthorized(accountId) {
-        uint256 limit = publicAccounts[accountId].withdrawLimit[msg.sender];
-        require(limit == 0 || amount <= limit, "Withdraw exceeds limit");
-        require(publicAccounts[accountId].balances[msg.sender] >= amount, "Insufficient balance");
-        publicAccounts[accountId].balances[msg.sender] -= amount;
-        payable(msg.sender).transfer(amount);
+    function withdrawFromPublic(
+        bytes32 _accountId,
+        uint256 _amount
+    ) external onlyAuthorized(_accountId) {
+        uint256 limit = publicAccounts[_accountId].withdrawLimit[msg.sender];
+        require(limit == 0 || _amount <= limit, "Withdraw exceeds limit");
+        require(
+            publicAccounts[_accountId].balances[msg.sender] >= _amount,
+            "Insufficient balance"
+        );
+        publicAccounts[_accountId].balances[msg.sender] -= _amount;
+        payable(msg.sender).transfer(_amount);
+
+        emit PublicAccountWithdraw(_accountId, msg.sender, _amount);
     }
 
     /// @notice 공용계좌 잔고 확인
-    function checkPublicBalance(bytes32 accountId) external view onlyAuthorized(accountId) returns (uint256) {
-        return publicAccounts[accountId].balances[msg.sender];
+    function checkPublicBalance(
+        bytes32 _accountId
+    ) external view onlyAuthorized(_accountId) returns (uint256) {
+        return publicAccounts[_accountId].balances[msg.sender];
     }
 }

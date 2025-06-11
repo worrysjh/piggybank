@@ -13,9 +13,19 @@ describe("PiggyBank - 공용 계좌 기능", function () {
     // 공용 계좌 생성
     const tx = await piggyBank.connect(owner).createPublicAccount();
     const receipt = await tx.wait();
+    /* 
+    //const event = receipt.events.find((e) => e.event === "PublicAccountCreated");
+    
+    오류 메시지 : TypeError: Cannot read properties of undefined (reading 'find')
+    receipt가 undefined됨
+
+    receipt.events 대신 receipt.logs 를 수동으로 파싱
+    createdPublicAccount에서 accountId 찾기 과정
+    */
 
     // 이벤트 수동 파싱
     const iface = piggyBank.interface;
+    // receipt.logs : 트랜잭션 실행 결과로 발생한 모든 로그 배열
     const parsed = receipt.logs
       .map((log) => {
         try {
