@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import "./AccessControl.sol";
+
 /// @title PiggyBank - 개인 및 공용 계좌를 지원하는 이더리움 은행
 /// @notice 사용자가 개인 또는 공용 계좌를 개설하고, 입출금할 수 있게 한다
-contract PiggyBank {
+contract PiggyBank is AccessControl {
     event PrivateAccountCreated(address indexed owner);
     event Deposited(address indexed owner, uint256 amount);
     event Withdraw(address indexed owner, uint256 amount);
@@ -76,24 +78,16 @@ contract PiggyBank {
     }
 
     /// @notice 개인 계좌의 잔액을 조회할 수 있다.
-    function checkBalance() external view returns (uint256) {
-        require(hasAccount[msg.sender], "Account not found");
+    function checkBalance()
+        external
+        view
+        hasPrivateAccount(msg.sender)
+        returns (uint256)
+    {
         return balances[msg.sender];
     }
 
     // ------------------------
-    // 공용 계좌
-    /// @notice 공용 계좌 구조
-    struct PublicAccount {
-        address owner; // 관리자(계설자)
-        mapping(address => bool) access; // 각 사용자 입출금 가능 여부
-        mapping(address => uint256) depositLimit; // 입금 한도
-        mapping(address => uint256) withdrawLimit; // 출금 한도
-        mapping(address => uint256) balances; // 잔액
-    }
-
-    mapping(bytes32 => PublicAccount) public publicAccounts;
-
     /// @notice 공용계좌 개설
     /// @dev 계좌 생성자(msg.sender)와 생성 시각(block.timestamp)을 조합해 유일한 값 해싱
     function createPublicAccount() external returns (bytes32) {
@@ -105,23 +99,6 @@ contract PiggyBank {
         emit PublicAccountCreated(id, msg.sender);
 
         return id;
-    }
-
-    /// @notice 계좌 주인인가를 검사한다
-    /// @dev modifier를 통해 전제 조건으로 검사
-    modifier onlyOwner(bytes32 _accountId) {
-        require(
-            publicAccounts[_accountId].owner == msg.sender,
-            "Not the account owner"
-        );
-        _;
-    }
-
-    /// @notice 권한이 부여되었는가를 검사한다
-    /// @dev modifier를 통해 전제 조건으로 검사
-    modifier onlyAuthorized(bytes32 _accountId) {
-        require(publicAccounts[_accountId].access[msg.sender], "No access");
-        _;
     }
 
     /// @notice 특정 유저에게 접근 권한을 부여한다
